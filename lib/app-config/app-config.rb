@@ -3,7 +3,16 @@ require 'active_record'
 module AppConfig
   extend AppConfig::Processor
 
-  FORMATS = ['string', 'array', 'hash', 'boolean'].freeze
+  FORMATS = [:string, :array, :hash, :boolean, :integer, :float].freeze
+  FORMATS_MAP = {
+    String      => :string,
+    Array       => :array,
+    Hash        => :hash,
+    TrueClass   => :boolean,
+    FalseClass  => :boolean,
+    Fixnum      => :integer,
+    Float       => :float,
+  }.freeze
   RESTRICTED_KEYS = [
     'id',
     'to_s',
@@ -52,10 +61,10 @@ module AppConfig
   end
   
   # Manually set (or add) a key
-  def self.set_key(keyname, value, format='string')
-    raise InvalidKeyName, "Invalid key name: #{keyname}" if RESTRICTED_KEYS.include?(keyname)
-    @@records[keyname] = process(value, format)
-  end
+  #def self.set_key(keyname, value, format='string')
+    #raise InvalidKeyName, "Invalid key name: #{keyname}" if RESTRICTED_KEYS.include?(keyname)
+    #@@records[keyname] = process(value, format)
+  #end
   
   # Returns all configuration keys
   def self.keys
@@ -69,12 +78,20 @@ module AppConfig
   
   # Get configuration option
   def self.[](key)
-    @@records[key.to_s]
+    @@records[key.to_sym]
+  end
+
+  def self.[]=(key, value)
+    @@records[key.to_sym] = value
   end
   
   # Get configuration option by attribute
   def self.method_missing(method, *args)
-    @@records[method.to_s]
+    if method[-1].eql?('=')
+      @@records[method[0..-2].to_sym] = args.first
+    else
+      @@records[method.to_sym]
+    end
   end
   
   # Returns true if configuration key exists
@@ -85,6 +102,16 @@ module AppConfig
   # Returns class that defined as source
   def self.source_model
     @@options[:model]
+  end
+
+  def self.save
+    @@records.each do |key, value|
+      format               = format_for_class(value.class)
+      source_model.where(keyname: key).first_or_create do |setting| 
+        setting.value        = serialize(value, format)
+        setting.value_format = format
+      end
+    end
   end
   
   protected
@@ -105,15 +132,20 @@ module AppConfig
     records = {}
     
     begin
-      @@options[:model].send(:all).map do |c|
-        records[c.send(@@options[:key].to_sym)] = process(
-          c.send(@@options[:value].to_sym),
-          c.send(@@options[:format].to_sym)
-        )
+      source_model.all.each do |setting|
+        records[setting.keyname.to_sym] = deserialize(setting.value,
+                                            setting.value_format.to_sym) 
       end
       records
     rescue ActiveRecord::StatementInvalid => ex
       raise InvalidSource, ex.message
+    end
+  end
+
+  private
+  def self.format_for_class(klass)
+    FORMATS_MAP.each do |key, value|
+      return value if key.ancestors.include?(klass)
     end
   end
 end
