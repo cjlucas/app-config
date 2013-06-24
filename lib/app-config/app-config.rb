@@ -3,7 +3,7 @@ require 'active_record'
 module AppConfig
   extend AppConfig::Processor
 
-  FORMATS = [:string, :array, :hash, :boolean, :integer, :float].freeze
+  FORMATS = [:string, :array, :hash, :boolean, :integer, :float, :nil].freeze
   FORMATS_MAP = {
     String      => :string,
     Array       => :array,
@@ -12,6 +12,7 @@ module AppConfig
     FalseClass  => :boolean,
     Fixnum      => :integer,
     Float       => :float,
+    NilClass    => :nil,
   }.freeze
   RESTRICTED_KEYS = [
     'id',
