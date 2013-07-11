@@ -108,10 +108,10 @@ module AppConfig
   def self.save
     @@records.each do |key, value|
       format               = format_for_class(value.class)
-      source_model.where(keyname: key).first_or_create do |setting| 
-        setting.value        = serialize(value, format)
-        setting.value_format = format
-      end
+      setting = source_model.where(keyname: key).first_or_create
+      setting.value        = serialize(value, format)
+      setting.value_format = format
+      setting.save
     end
   end
   
